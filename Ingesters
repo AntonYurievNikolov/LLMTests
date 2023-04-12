@@ -12,6 +12,7 @@ PINECONE_API_ENV = os.environ.get('PINECONE_API_ENV')
 pdfs = [
 
 ]
+
 annual_reports = []
 for pdf in pdfs:
     #loader = UnstructuredMarkdownLoader(pdf) MarkDownFromChatGpt
