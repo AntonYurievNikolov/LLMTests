@@ -85,20 +85,20 @@ def save_chat_history():
 
     return f"Chat history saved as {json_file_name} and {txt_file_name}"
 
+demo = gr.Blocks()
+
+with demo:
+    textQ = gr.Textbox(label='Your Question:')
+    textHistory = gr.Textbox(lines=6, label='History so far:')
+    labelA = gr.Textbox(lines=3, label='Current Answer:')
+    labelStatus = gr.Label(lines=1, label='Status')
+    b1 = gr.Button("Ask Question")
+    b2 = gr.Button("Save Conversation")
+
+    b1.click(ask_question, inputs=textQ, outputs=[labelA,textHistory])
+    b2.click(save_chat_history,  outputs=labelStatus)
+    title = "Pinecone Q&A"
+demo.launch(share=False)
 
 
 
-# save_button = gr.components.Button(labels=["Save Chat History"], events={"click": save_chat_history})
-inputs =  [gr.inputs.Textbox(lines=7, label="Ask your question:")]
-outputs = [gr.outputs.Textbox(label="Reply"), gr.outputs.Textbox(label="Chat History")]
-iface = gr.Interface(
-    fn=ask_question, 
-    inputs=inputs, 
-    outputs=outputs,
-    title="Pinecone Q&A"
-)
-# iface.add_button("Save Chat", save_chat_history)
-
-
-iface.launch(share=False)
-# Add the answer to the chat history
