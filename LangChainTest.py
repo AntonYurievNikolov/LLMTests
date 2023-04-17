@@ -1,4 +1,4 @@
-from langchain.vectorstores import Chroma, Pinecone
+from langchain.vectorstores import Pinecone
 from langchain.embeddings.openai import OpenAIEmbeddings
 from tqdm.autonotebook import tqdm
 from langchain.chains import ConversationalRetrievalChain
@@ -8,7 +8,9 @@ import gradio as gr
 import pinecone
 import os
 import json
-
+from langchain.retrievers import TimeWeightedVectorStoreRetriever
+from langchain.document_loaders import TextLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY')
@@ -32,9 +34,14 @@ index_name = "esoteric"
 
 
 vectorstore = Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
-# memory = ConversationBufferMemory(memory_key="chat_history",
-#                                          #input_key="human_input"
-#                                          )
+
+retriever = TimeWeightedVectorStoreRetriever(vectorstore=vectorstore, 
+                                            #  other_score_keys=["importance"], # Importance needs to be added 
+                                             k=5) 
+
+memory = ConversationBufferMemory(memory_key="chat_history",
+                                         input_key="human_input"
+                                         )
 
 
 # Create the chain
@@ -47,6 +54,7 @@ qa = ConversationalRetrievalChain.from_llm(
                 presence_penalty= 0.2
                 ),
     retriever=vectorstore.as_retriever(),
+    # retriever = retriever,
     return_source_documents=True,
     # memory = memory
 
@@ -65,12 +73,24 @@ qa = ConversationalRetrievalChain.from_llm(
 
 # chat_history = [system_message]
 chat_history = []
-vectordbkwargs = {"search_distance": 0.9}
+
+def print_chat_history(chat_history):
+    chat_string = ""
+    for message in chat_history:
+        chat_string += f"User: {message[0]}\n Assistant: {message[1]}\n"
+    return chat_string
+
+
+vectordbkwargs = {"search_distance": 0.5}
 def ask_question(query):
-    result = qa({"question": query, "chat_history": chat_history, "vectordbkwargs": vectordbkwargs})
+    result = qa({
+                 "question": query, 
+                 "chat_history": chat_history 
+                # , "vectordbkwargs": vectordbkwargs
+                 })
     answer = result["answer"]
     chat_history.append((query, answer))
-    return answer, chat_history
+    return answer, print_chat_history(chat_history)
 
 def save_chat_history():
     os.makedirs("DataToIngest", exist_ok=True)
@@ -89,7 +109,17 @@ def save_chat_history():
         for question, answer in chat_history:
             f.write(f"Q: {question}\nA: {answer}\n\n")
 
-    return f"Chat history saved as {json_file_name} and {txt_file_name}"
+    #Add This Conversation to the Memory Vectorstore
+    loader = TextLoader(txt_file_path)
+    document = loader.load()        
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=20)
+    chunked_conv = []
+    texts = text_splitter.split_documents(document)
+    chunked_conv.append(texts)
+    for chunks in chunked_conv:
+        Pinecone.from_texts([chunk.page_content for chunk in chunks], embeddings, index_name=index_name) 
+
+    return f"Chat history saved and added to the VectorStore"
 # Gradio UI
 demo = gr.Blocks()
 
