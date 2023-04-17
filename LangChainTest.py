@@ -3,6 +3,7 @@ from langchain.embeddings.openai import OpenAIEmbeddings
 from tqdm.autonotebook import tqdm
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationSummaryBufferMemory, ConversationBufferMemory
 import gradio as gr
 import pinecone
 import os
@@ -21,7 +22,7 @@ pinecone.init(
     api_key=PINECONE_API_KEY,
     environment=PINECONE_API_ENV
 )
-# # Will Add later when we have 2 
+# # Will Add later when we have 2
 # available_indices = pinecone.deployment.list_namespaces()
 # prefix = "your_prefix"  # Replace with your desired prefix, if applicable
 # filtered_indices = [index for index in available_indices if index.startswith(prefix)]
@@ -31,23 +32,27 @@ index_name = "esoteric"
 
 
 vectorstore = Pinecone.from_existing_index(index_name=index_name, embedding=embeddings)
+# memory = ConversationBufferMemory(memory_key="chat_history",
+#                                          #input_key="human_input"
+#                                          )
 
 
 # Create the chain
 qa = ConversationalRetrievalChain.from_llm(
     llm=ChatOpenAI(
-                temperature=0.8, 
+                temperature=0.8,
                 model_name="gpt-3.5-turbo",
                 top_p= 0.7,
                 frequency_penalty= 0.2,
                 presence_penalty= 0.2
-                ), 
+                ),
     retriever=vectorstore.as_retriever(),
     return_source_documents=True,
-    
+    # memory = memory
+
 )
 # Initialize chat history list and add Character. This is not the place. Need templates, or it gets REALLY messy. This talks to the other prompt....
-# system_message =  ("system", 
+# system_message =  ("system",
 #                     "Act as this Character Profile.Never BREAK CHARACTER.\
 #                     \n\nCharacter Name: Baba Milo Bot\
 #                     \nCharacter Description: Esoteric master and teacher\
@@ -60,11 +65,12 @@ qa = ConversationalRetrievalChain.from_llm(
 
 # chat_history = [system_message]
 chat_history = []
+vectordbkwargs = {"search_distance": 0.9}
 def ask_question(query):
-    result = qa({"question": query, "chat_history": chat_history})
+    result = qa({"question": query, "chat_history": chat_history, "vectordbkwargs": vectordbkwargs})
     answer = result["answer"]
     chat_history.append((query, answer))
-    return answer, chat_history[1:]
+    return answer, chat_history
 
 def save_chat_history():
     os.makedirs("DataToIngest", exist_ok=True)
@@ -84,7 +90,7 @@ def save_chat_history():
             f.write(f"Q: {question}\nA: {answer}\n\n")
 
     return f"Chat history saved as {json_file_name} and {txt_file_name}"
-
+# Gradio UI
 demo = gr.Blocks()
 
 with demo:
@@ -101,4 +107,24 @@ with demo:
 demo.launch(share=False)
 
 
+#Steamlit Test
+#import streamlit as st
 
+# #Streamlit layout and components
+# st.set_page_config(page_title="Pinecone Q&A", layout="wide")
+# st.title("Pinecone Q&A")
+
+# user_input = st.text_input("Your Question:")
+# submit_button = st.button("Ask Question")
+
+# if submit_button:
+#     answer, updated_chat_history = ask_question(user_input)
+#     st.write(f"Current Answer: {answer}")
+#     with st.beta_expander("History so far:"):
+#         for q, a in updated_chat_history:
+#             st.write(f"Q: {q}\nA: {a}\n")
+
+# save_button = st.button("Save Conversation")
+# if save_button:
+#     save_status = save_chat_history()
+#     st.write(f"Status: {save_status}")
